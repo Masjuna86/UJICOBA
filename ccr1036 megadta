@@ -1,0 +1,41 @@
+/ip firewall address-list
+# Daftar DNS Terpercaya (Anycast)
+add address=8.8.8.8 list=securedns comment="Google DNS"
+add address=8.8.4.4 list=securedns comment="Google DNS"
+add address=1.1.1.1 list=securedns comment="Cloudflare"
+add address=1.0.0.1 list=securedns comment="Cloudflare"
+add address=9.9.9.9 list=securedns comment="Quad9 Secure"
+add address=149.112.112.112 list=securedns comment="Quad9 Secure"
+add address=208.67.222.222 list=securedns comment="OpenDNS"
+add address=208.67.220.220 list=securedns comment="OpenDNS"
+
+# Daftar IP yang sudah Anda identifikasi sebagai Bot/Bahaya
+add address=176.57.168.134 list=IP_RustoBot
+add address=dvrhelper.anondns.net list=IP_RustoBot
+
+/ip firewall raw
+# 1. DROP Paket Tidak Valid (Menghemat CPU secara signifikan)
+add action=drop chain=prerouting connection-state=invalid comment="Drop Invalid Connections"
+
+# 2. Proteksi DNS (Mencegah Router jadi alat DDoS orang lain)
+# Mengizinkan trafik DNS ke daftar securedns, sisanya yang dari luar akan di-drop
+add action=accept chain=prerouting dst-port=53 protocol=udp dst-address-list=securedns comment="Allow Trusted DNS"
+add action=accept chain=prerouting dst-port=53 protocol=tcp dst-address-list=securedns comment="Allow Trusted DNS"
+
+# 3. Blokir Port Berbahaya (Virus & Malware Port)
+add action=drop chain=prerouting dst-port=135-139 protocol=tcp comment="Drop SMB Windows (Virus)"
+add action=drop chain=prerouting dst-port=135-139 protocol=udp comment="Drop SMB Windows (Virus)"
+add action=drop chain=prerouting dst-port=445 protocol=tcp comment="Drop SMB Windows (Virus)"
+
+# 4. Proteksi dari UDP Reflection Attack (Memcached & Amplification)
+add action=drop chain=prerouting protocol=udp src-port=11211 comment="Drop Memcached (DDoS)"
+add action=drop chain=prerouting dst-port=11211 protocol=udp comment="Drop Memcached (DDoS)"
+
+# 5. Blokir Port SMTP (Optional: Untuk mencegah Spamming dari pelanggan)
+add action=drop chain=prerouting dst-port=25 protocol=tcp comment="Drop Spamming SMTP Port"
+
+# 6. Blokir IP yang sudah masuk daftar Blacklist/Bot
+add action=drop chain=prerouting src-address-list=IP_RustoBot comment="Drop Known Bots"
+
+
+
