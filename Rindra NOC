@@ -1,0 +1,75 @@
+/ip firewall filter
+
+# 1. OPTIMALISASI KONEKSI (Ditaruh paling atas agar CPU ringan)
+add action=accept chain=forward comment=established connection-state=established
+add action=accept chain=forward comment=related connection-state=related
+add action=drop chain=forward comment=invalid connection-state=invalid
+
+# 2. ROUTING & INFRASTRUKTUR (BGP)
+# Baris 4: Izin BGP Peering untuk router itu sendiri
+add action=accept chain=input comment="Allow BGP peering between loopbacks" dst-address-list=Network-Control-Plane src-address-list=Network-Control-Plane
+# Baris 5: Izin trafik BGP lewat (transit) melalui router
+add action=accept chain=forward comment="Allow BGP peering between loopbacks" dst-port=179 protocol=tcp src-address-list=Network-Control-Plane
+
+# 3. AKSES MANAGEMENT (Siapa yang boleh buka Winbox/SSH/Web)
+# Baris 6: Izin akses Winbox, SSH, HTTP, HTTPS untuk Admin
+add action=accept chain=input dst-port=21,22,23,80,443,8291 protocol=tcp src-address-list=allow_remote_access
+# Baris 7: Izin jalur VPN (L2TP/IPsec)
+add action=accept chain=input dst-port=500,1701,4500 protocol=udp src-address-list=allow_remote_access
+# Baris 8: Izin akses API untuk aplikasi luar
+add action=accept chain=input dst-port=8728-8729 protocol=tcp src-address-list=allow_remote_access
+
+# 4. BLOKIR AKSES ILEGAL (Drop selain Admin)
+# Baris 9: Blokir API bagi yang tidak terdaftar
+add action=drop chain=input dst-port=8728-8729 protocol=tcp
+# Baris 10: Blokir Winbox/SSH/Web bagi yang tidak terdaftar
+add action=drop chain=input dst-port=21,22,23,80,443,8291 protocol=tcp
+# Baris 11: Blokir port management via UDP
+add action=drop chain=input dst-port=21,22,23,80,443,500,1701,4500,8291 protocol=udp
+# Baris 12: Anti DNS Flood (Mencegah serangan DNS via VLAN BGPLAN)
+add action=drop chain=input dst-port=53 in-interface=vlan1082-BGPLAN protocol=udp
+
+# 5. KEAMANAN JARINGAN (Anti Virus & Anti Malware)
+# Baris 13-14: Blokir Port Windows Sharing (SMB) agar virus tidak menyebar antar user
+add action=drop chain=forward dst-port=136-139,445 protocol=tcp
+add action=drop chain=forward dst-port=136-139,445 protocol=udp
+# Baris 15: Blokir serangan DDoS via port 80 UDP
+add action=drop chain=forward comment=block-DDoS-or-illegal-traffic dst-port=80 protocol=udp
+
+# 6. KONTROL EMAIL (Anti Spam)
+# Baris 16: Izinkan server email yang sudah terdaftar
+add action=accept chain=forward dst-address-list=ALLOW_KNOWN_SMTP dst-port=25 protocol=tcp
+# Baris 17: Blokir user lain yang coba-coba kirim email via port 25 (mencegah Blacklist IP ISP)
+add action=drop chain=forward dst-port=25 protocol=tcp src-address-list=PRIVATE_IP_SMTP_CUSTOMER
+
+# 7. ISOLASI PERANGKAT MANAJEMEN (Proteksi OLT/Switch/Alat)
+# Baris 18-20: Pelanggan di ether2-LAN dilarang akses alat management kecuali port monitoring
+add action=drop chain=forward dst-address-list=PRIVATE_IP_MGMT dst-port=!80,161-162,443 in-interface=ether2-LAN protocol=tcp src-address-list=!allow_remote_access
+add action=drop chain=forward dst-address-list=PRIVATE_IP_MGMT dst-port=!80,161-162,443 in-interface=ether2-LAN protocol=udp src-address-list=!allow_remote_access
+add action=drop chain=forward dst-address-list=PRIVATE_IP_MGMT in-interface=ether2-LAN protocol=icmp src-address-list=!allow_remote_access
+
+# 8. MANAJEMEN PELANGGAN
+# Baris 21: Fitur untuk mematikan internet pelanggan yang ada di daftar Suspend
+add action=drop chain=forward comment=SUSPEND_SOLNET src-address-list=SUSPEND_SOLNET
+
+
+/ip firewall address-list
+# Tambahkan IP/Network Control Plane (BGP/Loopback)
+add address=10.255.255.1 list=Network-Control-Plane comment="IP Loopback Router"
+add address=10.10.10.0/24 list=Network-Control-Plane comment="Network Internal"
+
+# Tambahkan IP yang diijinkan akses Remote (Winbox/SSH/Web)
+add address=192.168.1.10 list=allow_remote_access comment="Laptop Admin"
+add address=192.168.88.0/24 list=allow_remote_access comment="Network Management"
+
+# Tambahkan Server SMTP yang Terpercaya
+add address=1.1.1.1 list=ALLOW_KNOWN_SMTP comment="Contoh SMTP Server Terpercaya"
+
+# Tambahkan List IP Management (untuk diproteksi)
+add address=172.16.0.0/24 list=PRIVATE_IP_MGMT
+
+# Tambahkan List IP Customer yang diblokir (Suspend)
+add address=10.20.30.5 list=SUSPEND_SOLNET comment="User Jatuh Tempo"
+
+# Tambahkan List IP Customer untuk Filter SMTP
+add address=10.20.30.0/24 list=PRIVATE_IP_SMTP_CUSTOMER
