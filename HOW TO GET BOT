@@ -1,0 +1,11 @@
+HOW TO GET BOT / API / TOKEN TELEGRAM:
+Search in your Telegram @BotFather or https://t.me/BotFather
+Send /newbot
+Create name like this -> Example: YourName_bot and input again with same name YourName_bot
+Save your TOKEN / BOT / API -> Example: 5633162xxx:AAFU1dsXcARJlAH_jJmvF1D4Bp8LLTLJjaX
+Search in your Telegram @YourName_bot and then click START Button
+HOW TO GET CHAT ID TELEGRAM:
+Search in your Telegram @get_id_bot or https://t.me/get_id_bot
+Send /start
+Save your Chat ID like this -> Example: 5537582xxx
+Finaly test from your Browser https://api.telegram.org/bot<TOKEN>/sendMessage?chat_id=<CHAT_ID>&text=Hello%20World
